@@ -1,0 +1,25 @@
+{
+  "name": "abstractClasses-config",
+  "version": "1.0.1",
+  "description": "Config interfaces and implementations for ESP32/ESP8266 projects (SPIFFS/JSON, iConfigManager interface). Compatible with SPIFFS and LittleFS.",
+  "keywords": ["esp32", "esp8266", "config", "json", "spi", "interface", "SPIFFS", "LittleFS"],
+  "authors": [
+    {
+      "name": "Peter K Green",
+      "email": "pkg40@yahoo.com",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32", "espressif8266"],
+  "build": {
+    "includeDir": "src",
+    "srcDir": "src",
+    "srcFilter": [
+      "+<src/configManager.cpp>",
+      "+<src/iConfigProvider.hpp>",
+    ]
+  },
+  "documentation": "Compatible with both ESP32 and ESP8266. Uses SPIFFS by default; for ESP8266, consider switching to LittleFS for newer projects. Add conditional includes if needed."
+}

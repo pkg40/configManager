@@ -30,7 +30,7 @@
 #include <map>
 #include <vector>
 #include <ArduinoJson.h>
-#include <iConfigProvider.hpp>
+#include "interface/iConfigProvider.hpp"
 
 // Platform-specific filesystem includes
 #if defined(ESP32)

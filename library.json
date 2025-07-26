@@ -17,8 +17,9 @@
     "includeDir": "src",
     "srcDir": "src",
     "srcFilter": [
-      "+<src/configManager.cpp>",
-      "+<src/iConfigProvider.hpp>",
+      "+<interface/*>",
+      "+<*.cpp>",
+      "+<*.hpp>"
     ]
   },
   "documentation": "Compatible with both ESP32 and ESP8266. Uses SPIFFS by default; for ESP8266, consider switching to LittleFS for newer projects. Add conditional includes if needed."

@@ -32,17 +32,14 @@
 #include <ArduinoJson.h>
 #include "interface/iConfigProvider.hpp"
 
+
 // Platform-specific filesystem includes
-#if defined(ESP32)
-#include <SPIFFS.h>
-#elif defined(ESP8266)
-#if defined(USE_LITTLEFS)
-#include <LittleFS.h>
+#if defined(ESP32S3) || defined(ESP32C3) || defined(ESP8266) || defined(USE_LITTLEFS)
+#include <LittleFS.h> // Use LittleFS for ESP32S3, ESP32C3, ESP8266, or if forced
+#elif defined(ESP32)
+#include <SPIFFS.h>   // Classic ESP32 can use SPIFFS
 #else
-#include <SPIFFS.h>
-#endif
-#else
-#error "Unsupported platform: Only ESP32 and ESP8266 are supported."
+#error "Unsupported platform: Only ESP32, ESP32S3, ESP32C3, and ESP8266 are supported."
 #endif
 
 // Usage:
@@ -58,6 +55,12 @@
 //
 // Memory Usage Guidelines:
 // ESP32: Can handle large configs (32KB+) 
+
+/**
+ * @file configManager.hpp
+ * @brief Persistent JSON configuration manager for ESP32/ESP8266
+ * @author Peter K Green (pkg40@yahoo.com)
+ */
 // ESP8266: Recommended max config size 8KB, test with actual hardware
 // Consider using config sections to load only needed parts on ESP8266
 
@@ -102,4 +105,7 @@ public:
     std::vector<String> getKeys(const String& section) const override;
     bool saveConfig() override;
     bool loadConfig() override;
+    void printHeapStatus() const;
+    size_t getConfigMemoryUsage() const;
+    bool clearConfig();
 };

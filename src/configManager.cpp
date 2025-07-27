@@ -42,6 +42,12 @@
  * - Consider splitting large configs into multiple files if needed
  */
 
+/**
+ * @file configManager.cpp
+ * @brief Implementation of persistent JSON configuration manager for ESP32/ESP8266
+ * @author Peter K Green (pkg40@yahoo.com)
+ */
+
 
 #include <configManager.hpp>
 
@@ -459,4 +465,57 @@ bool configManager::saveConfig()
 bool configManager::loadConfig()
 {
     return begin("/config.json", true);
+}
+
+/**
+ * @brief Print current heap status to Serial (ESP8266/ESP32 only).
+ *
+ * Prints free heap and config memory usage for diagnostics.
+ */
+void configManager::printHeapStatus() const {
+#if defined(ESP8266) || defined(ESP32)
+    Serial.printf("[configManager] Free heap: %u bytes\n", ESP.getFreeHeap());
+    Serial.printf("[configManager] Config memory usage: %u bytes\n", getConfigMemoryUsage());
+#else
+    // No-op for other platforms
+#endif
+}
+
+/**
+ * @brief Get the memory usage of the loaded config (in bytes).
+ *
+ * @return size_t Number of bytes used by the config in memory.
+ */
+size_t configManager::getConfigMemoryUsage() const {
+    // Estimate memory usage of config (JSON + STL containers)
+    size_t total = 0;
+    for (const auto& section : _config) {
+        total += section.first.length();
+        for (const auto& kv : section.second) {
+            total += kv.first.length() + kv.second.length();
+        }
+    }
+    return total;
+}
+
+/**
+ * @brief Erase the config file and reset to defaults.
+ *
+ * Removes the config file from the filesystem and clears in-memory config.
+ * Safe to call at any time.
+ * @return true if config was cleared, false otherwise.
+ */
+bool configManager::clearConfig() {
+#if defined(ESP8266) || defined(ESP32)
+#if defined(USE_LITTLEFS)
+    bool removed = LittleFS.remove("/config.json");
+#else
+    bool removed = SPIFFS.remove("/config.json");
+#endif
+    _config.clear();
+    return removed;
+#else
+    // No-op for other platforms
+    return false;
+#endif
 }

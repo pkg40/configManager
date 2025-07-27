@@ -41,11 +41,11 @@ void runConfigTests(iConfigManager* config) {
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    iConfigManager* config = new configManager();
-    config->begin("/test_config.json", true);
-    runConfigTests(config);
-    config->save();
-    config->printToSerial();
+    configManager config;
+    config.begin("/test_config.json", true);
+    runConfigTests(&config);
+    config.save();
+    config.printToSerial();
 }
 
 void loop() {

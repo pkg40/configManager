@@ -60,8 +60,8 @@ void runTestbench(iConfigManager* config) {
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    iConfigManager* config = new configManager();
-    runTestbench(config);
+    configManager config;
+    runTestbench(&config);
 }
 
 void loop() {

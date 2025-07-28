@@ -1,3 +1,11 @@
+// Minimal test method for linkage check
+int configManager::testLinkage(int x) const {
+    return x + 42;
+}
+// Minimal test method for linkage check
+int configManager::testLinkage(int x) const {
+    return x + 42;
+}
 /*
  * MIT License
  *
@@ -48,31 +56,39 @@
  * @author Peter K Green (pkg40@yahoo.com)
  */
 
-
 #include <configManager.hpp>
+
+// Filesystem selection macro
+#if defined(USE_LITTLEFS)
+  #include <LittleFS.h>
+  #define CONFIG_FS LittleFS
+#else
+  #include <SPIFFS.h>
+  #define CONFIG_FS SPIFFS
+#endif
 
 bool configManager::begin(const String filename, bool verbose)
 {
     String jsonString;
-    _config.clear(); // Always start clean
+    _configMap.clear(); // Always start clean
 
-    // Initialize filesystem - ESP32 and ESP8266 have different SPIFFS.begin() signatures
-    // ESP32: SPIFFS.begin(format_if_failed) - can auto-format if filesystem is corrupted
-    // ESP8266: SPIFFS.begin() - no parameters, manual formatting required if corrupted
+    // Initialize filesystem - ESP32 and ESP8266 have different CONFIG_FS.begin() signatures
+    // ESP32: CONFIG_FS.begin(format_if_failed) - can auto-format if filesystem is corrupted
+    // ESP8266: CONFIG_FS.begin() - no parameters, manual formatting required if corrupted
     #if defined(ESP32)
-        if (!SPIFFS.begin(true))
+        if (!CONFIG_FS.begin(true))
     #elif defined(ESP8266)  
-        if (!SPIFFS.begin())
+        if (!CONFIG_FS.begin())
     #endif
     {
         if (verbose)
-            Serial.println("❌ SPIFFS Mount Failed. Loading defaults...");
+            Serial.println("❌ CONFIG_FS Mount Failed. Loading defaults...");
         jsonString = loadDefaults();
     }
     else
     {
         if (verbose)
-            Serial.println("✅ SPIFFS mounted");
+            Serial.println("✅ CONFIG_FS mounted");
 
         if (!loadConfigString(filename.c_str(), &jsonString, verbose))
         {
@@ -90,23 +106,23 @@ bool configManager::begin(const String filename, bool verbose)
     }
 
     // Deserialize
-    _config = jsonStringToMap(jsonString, verbose);
+    _configMap = jsonStringToMap(jsonString, verbose);
 
-    if (_config.empty())
+    if (_configMap.empty())
     {
         if (verbose)
             Serial.println("⚠️ JSON parsing failed or produced empty config.");
         jsonString = loadDefaults();
-        _config = jsonStringToMap(jsonString);
+        _configMap = jsonStringToMap(jsonString);
     }
 
     if (verbose)
     {
-        Serial.printf("✅ Loaded %zu config sections\n", _config.size());
+        Serial.printf("✅ Loaded %zu config sections\n", _configMap.size());
         printConfigToSerial();
     }
 
-    return !_config.empty();
+    return !_configMap.empty();
 }
 
 String configManager::loadDefaults()
@@ -188,7 +204,7 @@ String configManager::loadDefaults()
 
 bool configManager::loadConfigString(const char *filename, String *jsonString, bool verbose)
 {
-    File file = SPIFFS.open(filename, "r");
+    File file = CONFIG_FS.open(filename, "r");
     if (!file)
     {
         if (verbose)
@@ -216,7 +232,7 @@ bool configManager::loadConfigString(const char *filename, String *jsonString, b
 
 bool configManager::jsonStringToConfig(const String &jsonString, bool verbose)
 {
-    _config = jsonStringToMap(jsonString, verbose);
+    _configMap = jsonStringToMap(jsonString, verbose);
     return true;
 }
 
@@ -286,7 +302,7 @@ bool configManager::saveToJson(const String &path, const std::map<String, std::m
 {
     String jsonOutput = mapToJsonString(configMap);
 
-    File file = SPIFFS.open(path, "w");
+    File file = CONFIG_FS.open(path, "w");
     if (!file)
     {
         Serial.println("❌ Failed to open file for writing: " + path);
@@ -308,26 +324,26 @@ bool configManager::saveToJson(const String &path, const std::map<String, std::m
 
 bool configManager::saveConfigFile(const char *filename)
 {
-    return saveToJson(filename, _config);
+    return saveToJson(filename, _configMap);
 }
 
 String configManager::getValue(const String &section, const String &key) const
 {
-    if (_config.count(section) && _config.at(section).count(key))
+    if (_configMap.count(section) && _configMap.at(section).count(key))
     {
-        return _config.at(section).at(key);
+        return _configMap.at(section).at(key);
     }
     return "[NOT FOUND]";
 }
 
 void configManager::setValue(const String &section, const String &key, const String &value)
 {
-    _config[section][key] = value;
+    _configMap[section][key] = value;
 }
 
 const std::map<String, std::map<String, String>> &configManager::getConfig() const
 {
-    return _config;
+    return _configMap;
 }
 
 String configManager::getUser() const
@@ -343,7 +359,7 @@ String configManager::getPassword() const
 void configManager::printConfigToSerial() const
 {
     Serial.println("\n===== Configuration Map =====");
-    for (const auto &section : _config)
+    for (const auto &section : _configMap)
     {
         Serial.println("[" + section.first + "]");
         for (const auto &field : section.second)
@@ -378,14 +394,14 @@ String configManager::mapToJsonString(const std::map<String, std::map<String, St
 
 std::map<String, String> &configManager::getSection(const String &sectionName)
 {
-    return _config[sectionName];
+    return _configMap[sectionName];
 }
 
 const std::map<String, String>& configManager::getSection(const String &sectionName) const
 {
     static const std::map<String, String> emptyMap;
-    auto it = _config.find(sectionName);
-    if (it != _config.end()) {
+    auto it = _configMap.find(sectionName);
+    if (it != _configMap.end()) {
         return it->second;
     }
     return emptyMap;
@@ -421,7 +437,7 @@ bool configManager::parseHexStringToBytes(const String &hexInput, uint8_t *out, 
 std::vector<String> configManager::getSections() const
 {
     std::vector<String> sections;
-    for (const auto& section : _config)
+    for (const auto& section : _configMap)
     {
         sections.push_back(section.first);
     }
@@ -431,7 +447,7 @@ std::vector<String> configManager::getSections() const
 std::vector<String> configManager::getFormatSections() const
 {
     std::vector<String> formatSections;
-    for (const auto& section : _config)
+    for (const auto& section : _configMap)
     {
         String formatSection = section.first;
         if (formatSection.startsWith("_"))
@@ -446,8 +462,8 @@ std::vector<String> configManager::getFormatSections() const
 std::vector<String> configManager::getKeys(const String& section) const
 {
     std::vector<String> keys;
-    auto sectionIt = _config.find(section);
-    if (sectionIt != _config.end())
+    auto sectionIt = _configMap.find(section);
+    if (sectionIt != _configMap.end())
     {
         for (const auto& keyValue : sectionIt->second)
         {
@@ -489,7 +505,7 @@ void configManager::printHeapStatus() const {
 size_t configManager::getConfigMemoryUsage() const {
     // Estimate memory usage of config (JSON + STL containers)
     size_t total = 0;
-    for (const auto& section : _config) {
+    for (const auto& section : _configMap) {
         total += section.first.length();
         for (const auto& kv : section.second) {
             total += kv.first.length() + kv.second.length();
@@ -510,9 +526,9 @@ bool configManager::clearConfig() {
 #if defined(USE_LITTLEFS)
     bool removed = LittleFS.remove("/config.json");
 #else
-    bool removed = SPIFFS.remove("/config.json");
+    bool removed = CONFIG_FS.remove("/config.json");
 #endif
-    _config.clear();
+    _configMap.clear();
     return removed;
 #else
     // No-op for other platforms

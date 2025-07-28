@@ -1,19 +1,19 @@
 /*
- * Example usage of iConfigManager interface
+ * Example usage of iConfigProvider interface
  * Demonstrates basic config operations for ESP32/ESP8266
  */
 
 #include <Arduino.h>
-#include <iConfigManager.hpp>
+#include <iConfigProvider.hpp>
 #include <configManager.hpp>
 
-// Create a configManager instance (implements iConfigManager)
-iConfigManager* config = new configManager();
+// Create a configManager instance (implements iConfigProvider)
+iConfigProvider* config = new configManager();
 
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    Serial.println("\n--- iConfigManager Example ---");
+    Serial.println("\n--- iConfigProvider Example ---");
 
     // Initialize config from file
     if (config->begin("/config.json", true)) {

@@ -64,40 +64,56 @@
 // ESP8266: Recommended max config size 8KB, test with actual hardware
 // Consider using config sections to load only needed parts on ESP8266
 
+
+/**
+ * @brief Persistent JSON configuration manager for ESP32/ESP8266
+ * @file configManager.hpp
+ * @author Peter K Green (pkg40@yahoo.com)
+ */
+
 class configManager : public iConfigProvider
 {
+    #ifdef TESTBENCH
+    friend class testLib;
+    #endif
 private:
-    std::map<String, std::map<String, String>> _config; // section → field → value
-    bool begin( String filename, bool = true);
-    bool loadConfigString(const char *filename, String *jsonString, bool verbose = true);
-    std::map<String, std::map<String, String>> jsonStringToMap(const String &jsonString, bool = false);
-    bool jsonStringToConfig(const String &jsonString, bool = false);
-    String mapToJsonString(const std::map<String, std::map<String, String>> &configMap);
-    bool saveToJson(const String &path, const std::map<String, std::map<String, String>> &configMap);
-    bool saveConfigFile(const char *filename);
+    std::map<String, std::map<String, String>> _configMap;
+    static const int MAX_CONFIG_SIZE = 8192;
+    static const char* CONFIG_FILE_PATH;
+
+    bool _isConfigLoaded;
+
+    bool begin(String filename, bool verbose = true);
+    bool loadConfigString(const char* filename, String* jsonString, bool verbose = true);
+    std::map<String, std::map<String, String>> jsonStringToMap(const String& jsonString, bool verbose = false);
+    bool jsonStringToConfig(const String& jsonString, bool verbose = false);
+    String mapToJsonString(const std::map<String, std::map<String, String>>& configMap);
+    bool saveToJson(const String& path, const std::map<String, std::map<String, String>>& configMap);
+    bool saveConfigFile(const char* filename);
     String loadDefaults();
-    const std::map<String, std::map<String, String>> &getConfig() const;
+    const std::map<String, std::map<String, String>>& getConfig() const;
 
 public:
-    configManager() = default;
+    configManager() : _isConfigLoaded(false) {}
     ~configManager() = default;
 
+    // Minimal test method for linkage check
+    int testLinkage(int x) const;
 
-    String getValue(const String &section, const String &key) const override;
-    void setValue(const String &section, const String &key, const String &value) override;
+    String getValue(const String& section, const String& key) const override;
+    void setValue(const String& section, const String& key, const String& value) override;
 
     // Alias for interface compatibility
     std::vector<String> getSectionNames() const override { return getSections(); }
-
 
     // Optional auth helpers
     String getUser() const override;
     String getPassword() const override;
 
     void printConfigToSerial() const;
-    std::map<String, String> &getSection(const String &sectionName);
-    const std::map<String, String>& getSection(const String &sectionName) const override;
-    bool parseHexStringToBytes(const String &hexInput, uint8_t *out, size_t outLen) ;
+    std::map<String, String>& getSection(const String& sectionName);
+    const std::map<String, String>& getSection(const String& sectionName) const override;
+    bool parseHexStringToBytes(const String& hexInput, uint8_t* out_p, size_t outLen);
 
     // iConfigProvider interface implementation
     std::vector<String> getSections() const override;

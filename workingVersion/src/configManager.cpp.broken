@@ -1,4 +1,11 @@
-
+// Minimal test method for linkage check
+int configManager::testLinkage(int x) const {
+    return x + 42;
+}
+// Minimal test method for linkage check
+int configManager::testLinkage(int x) const {
+    return x + 42;
+}
 /*
  * MIT License
  *
@@ -6,25 +13,7 @@
  * Email: pkg40@yahoo.com
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this softwa    if (!file)
-    {
-        if (verbose)
-            Serial.println("❌ Failed to open config file.");
-        *jsonString_P = loadDefaults();
-    }
-    else
-    {
-        *jsonString_P = file.readString();
-        file.close();
-    }
-
-    if (jsonString_P->isEmpty())
-    {
-        if (verbose)
-            Serial.println("⚠️ Config file empty.");
-        *jsonString_P = loadDefaults();
-        return false;
-    }ocumentation files (the "Software"), to deal
+ * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
@@ -69,41 +58,37 @@
 
 #include <configManager.hpp>
 
-configManager::configManager(iFileSystemProvider* fsProvider, const String& configFilePath, size_t maxConfigSize) : 
-    _fsProvider(fsProvider),
-    _configFilePath(configFilePath),
-    _maxConfigSize(maxConfigSize),
-    _isConfigLoaded(false) 
-{
-    if (!_fsProvider) {
-        // Handle null file system provider
-        // Perhaps log an error or throw an exception
-    }
-}
+// Filesystem selection macro
+#if defined(USE_LITTLEFS)
+  #include <LittleFS.h>
+  #define CONFIG_FS LittleFS
+#else
+  #include <SPIFFS.h>
+  #define CONFIG_FS SPIFFS
+#endif
 
-bool configManager::begin(String filename, bool verbose)
+bool configManager::begin(const String filename, bool verbose)
 {
-    // Null pointer checks
-    if (filename.isEmpty()) {
-        if (verbose) Serial.println("❌ Error: Filename cannot be empty.");
-        return false;
-    }
-
-    _configFilePath = filename;
     String jsonString;
     _configMap.clear(); // Always start clean
 
-    // Initialize filesystem
-    if (!_fsProvider->begin())
+    // Initialize filesystem - ESP32 and ESP8266 have different CONFIG_FS.begin() signatures
+    // ESP32: CONFIG_FS.begin(format_if_failed) - can auto-format if filesystem is corrupted
+    // ESP8266: CONFIG_FS.begin() - no parameters, manual formatting required if corrupted
+    #if defined(ESP32)
+        if (!CONFIG_FS.begin(true))
+    #elif defined(ESP8266)  
+        if (!CONFIG_FS.begin())
+    #endif
     {
         if (verbose)
-            Serial.println("❌ Filesystem Mount Failed. Loading defaults...");
+            Serial.println("❌ CONFIG_FS Mount Failed. Loading defaults...");
         jsonString = loadDefaults();
     }
     else
     {
         if (verbose)
-            Serial.println("✅ Filesystem mounted");
+            Serial.println("✅ CONFIG_FS mounted");
 
         if (!loadConfigString(filename.c_str(), &jsonString, verbose))
         {
@@ -111,6 +96,7 @@ bool configManager::begin(String filename, bool verbose)
                 Serial.println("⚠️ Failed to read config file. Loading defaults...");
             jsonString = loadDefaults();
         }
+
     }
 
     if (verbose && !jsonString.isEmpty())
@@ -120,11 +106,14 @@ bool configManager::begin(String filename, bool verbose)
     }
 
     // Deserialize
-    if (!jsonStringToConfig(jsonString, verbose)) {
+    _configMap = jsonStringToMap(jsonString, verbose);
+
+    if (_configMap.empty())
+    {
         if (verbose)
-            Serial.println("⚠️ JSON parsing failed. Loading defaults...");
+            Serial.println("⚠️ JSON parsing failed or produced empty config.");
         jsonString = loadDefaults();
-        jsonStringToConfig(jsonString, verbose);
+        _configMap = jsonStringToMap(jsonString);
     }
 
     if (verbose)
@@ -133,11 +122,10 @@ bool configManager::begin(String filename, bool verbose)
         printConfigToSerial();
     }
 
-    _isConfigLoaded = !_configMap.empty();
-    return _isConfigLoaded;
+    return !_configMap.empty();
 }
 
-String configManager::loadDefaults() const
+String configManager::loadDefaults()
 {
     const char *defaultJSON = R"rawlite(
 {
@@ -216,19 +204,18 @@ String configManager::loadDefaults() const
 
 bool configManager::loadConfigString(const char *filename, String *jsonString, bool verbose)
 {
-    if (!filename || !jsonString) return false;
-
-    File file = _fsProvider->open(filename, "r");
+    File file = CONFIG_FS.open(filename, "r");
     if (!file)
     {
         if (verbose)
             Serial.println("❌ Failed to open config file.");
         *jsonString = loadDefaults();
-        return false;
     }
-    
-    *jsonString = file.readString();
-    file.close();
+    else
+    {
+        *jsonString = file.readString();
+        file.close();
+    }
 
     if (jsonString->isEmpty())
     {
@@ -245,28 +232,30 @@ bool configManager::loadConfigString(const char *filename, String *jsonString, b
 
 bool configManager::jsonStringToConfig(const String &jsonString, bool verbose)
 {
-    return jsonStringToMap(jsonString, _configMap, verbose);
+    _configMap = jsonStringToMap(jsonString, verbose);
+    return true;
 }
 
-bool configManager::jsonStringToMap(const String &jsonString, std::map<String, std::map<String, String>>& configMap, bool verbose)
+std::map<String, std::map<String, String>> configManager::jsonStringToMap(const String &jsonString, bool verbose)
 {
-    configMap.clear();
+    std::map<String, std::map<String, String>> configMap = {};
 
-    JsonDocument doc;
+    JsonDocument doc; // Use JsonDocument instead of DynamicJsonDocument
+    Serial.printf("⚠️ JSON string length: %u\n", jsonString.length());
+    Serial.println("📄 JSON preview:");
+    Serial.println(jsonString);
+
     DeserializationError error = deserializeJson(doc, jsonString);
-
+    if (!doc.is<JsonObject>()) {
+    Serial.println("⚠️ Root element is not an object!");
+    return {};
+}
     if (error)
     {
-        if (verbose) {
-            Serial.print(F("❌ deserializeJson() failed: "));
-            Serial.println(error.c_str());
-        }
-        return false;
-    }
-
-    if (!doc.is<JsonObject>()) {
-        if (verbose) Serial.println("⚠️ Root element is not an object!");
-        return false;
+        Serial.println("❌ Failed to parse JSON");
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.c_str());
+        return configMap;
     }
 
     JsonObjectConst root = doc.as<JsonObjectConst>();
@@ -297,7 +286,7 @@ bool configManager::jsonStringToMap(const String &jsonString, std::map<String, s
         }
         else
         {
-            if (verbose) Serial.printf("⚠️ Section '%s' is not an object\n", sectionName.c_str());
+            Serial.printf("⚠️ Section '%s' is not an object\n", sectionName.c_str());
         }
     }
 
@@ -306,14 +295,14 @@ bool configManager::jsonStringToMap(const String &jsonString, std::map<String, s
         Serial.printf("✅ Parsed %d sections\n", configMap.size());
     }
 
-    return true;
+    return configMap;
 }
 
-bool configManager::saveToJson(const String &path, const std::map<String, std::map<String, String>> &configMap) const
+bool configManager::saveToJson(const String &path, const std::map<String, std::map<String, String>> &configMap)
 {
     String jsonOutput = mapToJsonString(configMap);
 
-    File file = _fsProvider->open(path.c_str(), "w");
+    File file = CONFIG_FS.open(path, "w");
     if (!file)
     {
         Serial.println("❌ Failed to open file for writing: " + path);
@@ -335,7 +324,6 @@ bool configManager::saveToJson(const String &path, const std::map<String, std::m
 
 bool configManager::saveConfigFile(const char *filename)
 {
-    if (!filename) return false;
     return saveToJson(filename, _configMap);
 }
 
@@ -382,9 +370,9 @@ void configManager::printConfigToSerial() const
     Serial.println("=============================\n");
 }
 
-String configManager::mapToJsonString(const std::map<String, std::map<String, String>> &configMap) const
+String configManager::mapToJsonString(const std::map<String, std::map<String, String>> &configMap)
 {
-    JsonDocument doc;
+    JsonDocument doc; // Use JsonDocument instead of DynamicJsonDocument
 
     for (const auto &sectionPair : configMap)
     {
@@ -419,10 +407,8 @@ const std::map<String, String>& configManager::getSection(const String &sectionN
     return emptyMap;
 }
 
-bool configManager::parseHexStringToBytes(const String &hexInput, uint8_t *outputBuffer, size_t bufferLen) const
+bool configManager::parseHexStringToBytes(const String &hexInput, uint8_t *out, size_t outLen)
 {
-    if (!outputBuffer || bufferLen == 0) return false;
-
     String hex = hexInput;
     hex.replace(" ", "");
     hex.toUpperCase();
@@ -432,14 +418,14 @@ bool configManager::parseHexStringToBytes(const String &hexInput, uint8_t *outpu
         hex = hex.substring(2);
     }
 
-    if (hex.length() != bufferLen * 2)
+    if (hex.length() != outLen * 2)
         return false;
 
-    for (size_t i = 0; i < bufferLen; ++i)
+    for (size_t i = 0; i < outLen; ++i)
     {
         char byteStr[3] = {hex[2 * i], hex[2 * i + 1], '\0'};
         char *end = nullptr;
-        outputBuffer[i] = static_cast<uint8_t>(strtol(byteStr, &end, 16));
+        out[i] = static_cast<uint8_t>(strtol(byteStr, &end, 16));
         if (*end != '\0')
             return false;
     }
@@ -489,12 +475,12 @@ std::vector<String> configManager::getKeys(const String& section) const
 
 bool configManager::saveConfig()
 {
-    return saveConfigFile(_configFilePath.c_str());
+    return saveConfigFile("/config.json");
 }
 
 bool configManager::loadConfig()
 {
-    return begin(_configFilePath.c_str(), true);
+    return begin("/config.json", true);
 }
 
 /**
@@ -536,7 +522,16 @@ size_t configManager::getConfigMemoryUsage() const {
  * @return true if config was cleared, false otherwise.
  */
 bool configManager::clearConfig() {
-    bool removed = _fsProvider->remove("/config.json");
+#if defined(ESP8266) || defined(ESP32)
+#if defined(USE_LITTLEFS)
+    bool removed = LittleFS.remove("/config.json");
+#else
+    bool removed = CONFIG_FS.remove("/config.json");
+#endif
     _configMap.clear();
     return removed;
+#else
+    // No-op for other platforms
+    return false;
+#endif
 }

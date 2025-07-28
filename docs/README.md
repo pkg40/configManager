@@ -1,6 +1,6 @@
-# 📘 configManager — Persistent Config Management for ESP32/ESP8266
+# 📘 configManager v2.0 — Persistent Config Management for ESP32/ESP8266
 
-A lightweight configuration class for ESP devices, using SPIFFS/LittleFS and ArduinoJson for structured JSON-based settings. It supports default fallbacks, dynamic access, runtime updates, and full serialization.
+A lightweight, modular configuration library for ESP devices, using SPIFFS/LittleFS and ArduinoJson for structured JSON-based settings. Version 2.0 introduces filesystem provider separation for improved testability and flexibility.
 
 ---
 
@@ -12,18 +12,25 @@ A lightweight configuration class for ESP devices, using SPIFFS/LittleFS and Ard
 - 💾 Serialize config to JSON (pretty or compact)
 - 📊 Human-readable output via Serial
 - 🧹 Delete/reset config file on demand
+- 🔀 **NEW v2.0**: Modular filesystem provider architecture
+- 🧪 **NEW v2.0**: Improved testability with dependency injection
+- 🎯 **NEW v2.0**: SOLID principles compliance
 
 ---
 
-## Coding Standards & Naming Conventions
+## ⚠️ Breaking Changes in v2.0
 
-- All class, variable, and file names use camelCase (no exceptions).
-- Private class variables are prefixed with an underscore (e.g., `_configMap`).
-- Raw pointers use `_p` postfix, unique pointers use `Uptr`, shared pointers use `Sptr`, weak pointers use `Wptr`.
-- Constants are ALL_CAPS (e.g., `MAX_CONFIG_SIZE`, `CONFIG_FILE_PATH`).
-- Boolean variables use descriptive prefixes (e.g., `isConfigLoaded`).
-- Type definitions use `_t` postfix.
-- All code is C++11 compliant.
+**Constructor now requires a filesystem provider:**
+```cpp
+// v1.x (old)
+configManager config("/config.json");
+
+// v2.0 (new)
+platformFileSystemProvider fsProvider;
+configManager config(&fsProvider, "/config.json");
+```
+
+See [UPGRADE_GUIDE_V2.md](UPGRADE_GUIDE_V2.md) for complete migration instructions.
 
 ---
 
@@ -33,20 +40,27 @@ Include in your project:
 
 ```cpp
 #include "configManager.hpp"
+#include "platformFileSystemProvider.hpp"
 ```
 
 ---
 
-## Usage Example
+## Quick Start
 
 ```cpp
 #include "configManager.hpp"
+#include "platformFileSystemProvider.hpp"
 
-configManager config;
-if (config.loadConfig()) {
-    String ssid = config.getValue("wifiSTA", "ssid");
-    config.setValue("wifiSTA", "ssid", "newSSID");
-    config.saveConfig();
+// Create filesystem provider and config manager
+platformFileSystemProvider fsProvider;
+configManager config(&fsProvider);
+
+void setup() {
+    if (config.loadConfig()) {
+        String ssid = config.getValue("wifiSTA", "ssid");
+        config.setValue("wifiSTA", "ssid", "newSSID");
+        config.saveConfig();
+    }
 }
 ```
 

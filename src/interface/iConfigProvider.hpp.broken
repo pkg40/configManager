@@ -33,6 +33,7 @@
 #include <vector>
 
 class iConfigProvider {
+
 public:
     virtual ~iConfigProvider() = default;
 
@@ -42,7 +43,7 @@ public:
 
     // Metadata access
     virtual std::vector<String> getSections() const = 0;
-    virtual std::vector<String> getSectionNames() const = 0;  // Alias for getSections() - for backward compatibility
+    virtual std::vector<String> getSectionNames() const = 0;
     virtual std::vector<String> getFormatSections() const = 0;  // User-facing sections (no "_" prefix)
     virtual std::vector<String> getKeys(const String& section) const = 0;
 

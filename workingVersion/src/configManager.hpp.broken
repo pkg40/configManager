@@ -30,31 +30,27 @@
 #include <map>
 #include <vector>
 #include <ArduinoJson.h>
-#include "interface/iFileSystemProvider.hpp" // Use the file system provider interface
+#include "interface/iConfigProvider.hpp"
 
-// Conditional interface inclusion for efficiency
-#ifndef CONFIG_DISABLE_INTERFACE
-    #include "interface/iConfigProvider.hpp"
-    #define CONFIG_BASE_CLASS : public iConfigProvider
-    #define CONFIG_OVERRIDE override
+
+// Platform-specific filesystem includes
+#if defined(ESP32S3) || defined(ESP32C3) || defined(ESP8266) || defined(USE_LITTLEFS)
+#include <LittleFS.h> // Use LittleFS for ESP32S3, ESP32C3, ESP8266, or if forced
+#elif defined(ESP32)
+#include <SPIFFS.h>   // Classic ESP32 can use SPIFFS
 #else
-    #define CONFIG_BASE_CLASS
-    #define CONFIG_OVERRIDE
+#error "Unsupported platform: Only ESP32, ESP32S3, ESP32C3, and ESP8266 are supported."
 #endif
 
 // Usage:
 // For ESP8266, define USE_LITTLEFS to use LittleFS instead of SPIFFS.
 // Example: Add -DUSE_LITTLEFS to build flags in platformio.ini
 //
-// Interface Override for Code Efficiency:
-// Define CONFIG_DISABLE_INTERFACE to remove virtual interface inheritance
-// This eliminates vtable overhead for performance-critical applications
-// Example: Add -DCONFIG_DISABLE_INTERFACE to build flags
-// Warning: Disabling interface removes polymorphic capabilities
-//
 // ESP8266 Compatibility Notes:
 // - ESP8266 has limited memory (~80KB heap). Large JSON configs may cause issues.
 // - Recommended: Keep config files under 8KB for ESP8266
+// - SPIFFS is supported on both ESP32 and ESP8266
+// - LittleFS is more efficient and recommended for ESP8266 (requires USE_LITTLEFS flag)
 // - Flash filesystem must be initialized before use
 //
 // Memory Usage Guidelines:
@@ -68,54 +64,63 @@
 // ESP8266: Recommended max config size 8KB, test with actual hardware
 // Consider using config sections to load only needed parts on ESP8266
 
-class configManager CONFIG_BASE_CLASS
+
+/**
+ * @brief Persistent JSON configuration manager for ESP32/ESP8266
+ * @file configManager.hpp
+ * @author Peter K Green (pkg40@yahoo.com)
+ */
+
+class configManager : public iConfigProvider
 {
     #ifdef TESTBENCH
     friend class testLib;
     #endif
 private:
-    iFileSystemProvider* _fsProvider;
     std::map<String, std::map<String, String>> _configMap;
-    const size_t _maxConfigSize;
-    String _configFilePath;
+    static const int MAX_CONFIG_SIZE = 8192;
+    static const char* CONFIG_FILE_PATH;
 
     bool _isConfigLoaded;
 
     bool begin(String filename, bool verbose = true);
     bool loadConfigString(const char* filename, String* jsonString, bool verbose = true);
-    bool jsonStringToMap(const String& jsonString, std::map<String, std::map<String, String>>& configMap, bool verbose = false);
+    std::map<String, std::map<String, String>> jsonStringToMap(const String& jsonString, bool verbose = false);
     bool jsonStringToConfig(const String& jsonString, bool verbose = false);
-    String mapToJsonString(const std::map<String, std::map<String, String>>& configMap) const;
-    bool saveToJson(const String& path, const std::map<String, std::map<String, String>>& configMap) const;
+    String mapToJsonString(const std::map<String, std::map<String, String>>& configMap);
+    bool saveToJson(const String& path, const std::map<String, std::map<String, String>>& configMap);
     bool saveConfigFile(const char* filename);
-    String loadDefaults() const;
+    String loadDefaults();
     const std::map<String, std::map<String, String>>& getConfig() const;
 
 public:
-    explicit configManager(iFileSystemProvider* fsProvider, const String& configFilePath = "/config.json", size_t maxConfigSize = 8192);
+    configManager() : _isConfigLoaded(false) {}
     ~configManager() = default;
 
-    String getValue(const String& section, const String& key) const CONFIG_OVERRIDE;
-    void setValue(const String& section, const String& key, const String& value) CONFIG_OVERRIDE;
+    // Minimal test method for linkage check
+    int testLinkage(int x) const;
+
+    String getValue(const String& section, const String& key) const override;
+    void setValue(const String& section, const String& key, const String& value) override;
 
     // Alias for interface compatibility
-    std::vector<String> getSectionNames() const CONFIG_OVERRIDE { return getSections(); }
+    std::vector<String> getSectionNames() const override { return getSections(); }
 
     // Optional auth helpers
-    String getUser() const CONFIG_OVERRIDE;
-    String getPassword() const CONFIG_OVERRIDE;
+    String getUser() const override;
+    String getPassword() const override;
 
     void printConfigToSerial() const;
     std::map<String, String>& getSection(const String& sectionName);
-    const std::map<String, String>& getSection(const String& sectionName) const CONFIG_OVERRIDE;
-    bool parseHexStringToBytes(const String& hexInput, uint8_t* outputBuffer, size_t bufferLen) const;
+    const std::map<String, String>& getSection(const String& sectionName) const override;
+    bool parseHexStringToBytes(const String& hexInput, uint8_t* out_p, size_t outLen);
 
     // iConfigProvider interface implementation
-    std::vector<String> getSections() const CONFIG_OVERRIDE;
-    std::vector<String> getFormatSections() const CONFIG_OVERRIDE;
-    std::vector<String> getKeys(const String& section) const CONFIG_OVERRIDE;
-    bool saveConfig() CONFIG_OVERRIDE;
-    bool loadConfig() CONFIG_OVERRIDE;
+    std::vector<String> getSections() const override;
+    std::vector<String> getFormatSections() const override;
+    std::vector<String> getKeys(const String& section) const override;
+    bool saveConfig() override;
+    bool loadConfig() override;
     void printHeapStatus() const;
     size_t getConfigMemoryUsage() const;
     bool clearConfig();

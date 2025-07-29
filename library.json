@@ -1,6 +1,6 @@
 {
   "name": "abstractClasses-config",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Modular config management for ESP32/ESP8266 with filesystem provider separation. Supports SPIFFS/LittleFS with improved testability and SOLID principles compliance.",
   "keywords": ["esp32", "esp8266", "config", "json", "filesystem", "interface", "SPIFFS", "LittleFS", "dependency-injection", "testable"],
   "repository": {

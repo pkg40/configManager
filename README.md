@@ -196,6 +196,34 @@ void setup() {
 }
 ```
 
+### Embedded On-Device Test Runner (BasePacket Standard)
+
+An embedded multi-layer test harness is available when building with the `seeed_xiao_esp32s3_tests` environment (adds `-DRUN_EMBEDDED_TESTS`). It executes:
+
+1. Layer 1: Basic, interface, polymorphic
+2. Layer 2: Persistence, error handling, memory, edge, backward compatibility
+3. Layer 3: Performance micro-benchmarks
+4. Layer 4: Advanced stress & JSON compliance (separate advanced suite)
+
+Run sequence:
+
+```sh
+pio run -e seeed_xiao_esp32s3_tests
+pio upload -e seeed_xiao_esp32s3_tests
+pio device monitor -e seeed_xiao_esp32s3_tests
+```
+
+Monitor output for PASS/FAIL, performance timings, and memory summaries.
+
+To run production firmware instead:
+
+```sh
+pio run -e seeed_xiao_esp32s3
+pio upload -e seeed_xiao_esp32s3
+```
+
+ESP8266 and other boards can still use the existing environments for compatibility validation.
+
 ## 🤝 Contributing
 
 1. Fork the repository

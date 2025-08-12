@@ -5,6 +5,23 @@ All notable changes to the ConfigManager library will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2025-08-11
+
+### Added
+- Unity-based embedded test environment and dedicated `unityRunner.cpp`
+- Comprehensive Unity tests covering CRUD, persistence, section/key listing, hex parsing, auth helpers, bulk/large configs, filesystem fallback, and malformed JSON fallback
+
+### Changed
+- Serial initialization conditioning (delays, dot preamble, flushes) and periodic heartbeat/summary to stabilize USB-CDC output on ESP32S3
+- PlatformIO setup: chained Unity env via extra config and pinned upload/monitor ports for Windows stability
+- Native host path guarded and documented limitations; moved JSON-heavy/special-char checks out of native tests
+
+### Fixed
+- Duplicate setup/loop and Unity linkage conflicts by excluding non-Unity runners under UNITY_EMBEDDED and ignoring external Unity lib duplication
+
+### Documentation
+- Added `docs/NATIVE_TEST_NOTES.md` and updated README with usage and testing notes
+
 ## [2.0.0] - 2025-01-28
 
 ### Breaking Changes

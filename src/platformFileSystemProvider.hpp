@@ -1,5 +1,6 @@
-#pragma once
+﻿#pragma once
 
+#ifndef CONFIGMGR_NATIVE
 #include <interface/iFileSystemProvider.hpp>
 
 #if defined(ESP32)
@@ -30,3 +31,5 @@ public:
     bool remove(const char *path) override;
     bool exists(const char *path) override;
 };
+
+#endif // !CONFIGMGR_NATIVE

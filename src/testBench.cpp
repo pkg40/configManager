@@ -25,17 +25,24 @@
 /*
  * ConfigManager v2.0 Comprehensive Test Bench
  * Multi-tier testing with real and mock filesystem providers
+ * Excluded from native host build (handled by native_main.cpp)
  */
+
+#if !defined(CONFIGMGR_NATIVE) && !defined(UNITY_EMBEDDED)
 
 #include <Arduino.h>
 #include <configManager.hpp>
+#ifndef CONFIGMGR_NATIVE
 #include <platformFileSystemProvider.hpp>
+#endif
 #include "../test/testLib.hpp"
 #include "../test/advancedTestSuite_simple.hpp"
 
 // Global objects
+#ifndef CONFIGMGR_NATIVE
 platformFileSystemProvider fsProvider;
 configManager config(&fsProvider, "/testbench_config.json");
+#endif
 
 void runBasicTests() {
     Serial.println("🔧 === BASIC FUNCTIONAL TESTS === 🔧");
@@ -206,3 +213,5 @@ void loop() {
         memoryReported = true;
     }
 }
+
+#endif // !CONFIGMGR_NATIVE && !UNITY_EMBEDDED

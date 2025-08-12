@@ -25,11 +25,18 @@
 
 
 #pragma once
+#ifdef CONFIGMGR_NATIVE
+#include "compat/native_arduino_compat.hpp"
+#include "compat/WString.h"
+#else
 #include <Arduino.h>
 #include <WString.h>
+#endif
 #include <map>
 #include <vector>
+#ifndef CONFIGMGR_NATIVE
 #include <ArduinoJson.h>
+#endif
 #include "interface/iFileSystemProvider.hpp" // Use the file system provider interface
 
 // Conditional interface inclusion for efficiency

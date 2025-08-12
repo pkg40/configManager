@@ -1,10 +1,9 @@
 #ifdef CONFIGMGR_NATIVE
 #include "compat/native_arduino_compat.hpp"
 #include "compat/nativeFileSystemProvider.hpp"
-#include <ArduinoJson.h>
 #include "configManager.hpp"
-#include "test/testLib.hpp"
-#include "test/advancedTestSuite_simple.hpp"
+#include "../test/testLib.hpp"
+#include "../test/advancedTestSuite_simple.hpp"
 
 int main() {
     Serial.begin(115200);

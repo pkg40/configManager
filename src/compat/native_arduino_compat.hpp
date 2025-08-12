@@ -21,6 +21,9 @@ public:
     String() : std::string() {}
     String(const char* s) : std::string(s ? s : "") {}
     String(const std::string& s) : std::string(s) {}
+    String(int v) { *this = std::to_string(v); }
+    String(long v) { *this = std::to_string(v); }
+    String(unsigned long v) { *this = std::to_string(v); }
     bool isEmpty() const { return empty(); }
     String substring(size_t from, size_t to = std::string::npos) const {
         if (from >= size()) return String("");
@@ -44,12 +47,19 @@ public:
             pos += r.length();
         }
     }
+    bool concat(const String& other) { append(other); return true; }
+    bool concat(const char* s) { if(s) append(s); return true; }
 };
 
 inline unsigned long millis() {
     static auto start = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
     return (unsigned long) std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+}
+inline unsigned long micros() {
+    static auto start = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+    return (unsigned long) std::chrono::duration_cast<std::chrono::microseconds>(now - start).count();
 }
 inline void delay(unsigned long ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 

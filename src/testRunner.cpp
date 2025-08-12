@@ -1,7 +1,9 @@
-#ifdef RUN_EMBEDDED_TESTS
+#if defined(RUN_EMBEDDED_TESTS) && !defined(UNITY_EMBEDDED)
 #include <Arduino.h>
 #include <configManager.hpp>
+#ifndef CONFIGMGR_NATIVE
 #include <platformFileSystemProvider.hpp>
+#endif
 #include "../test/testLib.hpp"
 #include "../test/advancedTestSuite_simple.hpp"
 
@@ -11,8 +13,10 @@
  * Executes layered test strategy similar to BasePacket standard.
  */
 
+#ifndef CONFIGMGR_NATIVE
 platformFileSystemProvider _fsProvider;
 configManager _config(&_fsProvider, "/embedded_test.json");
+#endif
 
 static void runLayer1Basics() {
     Serial.println("\n[L1] Basic / Interface / Polymorphic tests");
@@ -45,8 +49,10 @@ void setup() {
     while(!Serial && millis() < 4000) {}
     Serial.println("\n=== configManager Embedded Test Runner ===");
 
+    #ifndef CONFIGMGR_NATIVE
     _fsProvider.begin();
     _config.loadConfig();
+    #endif
 
     testLib::startTests();
     runLayer1Basics();
@@ -64,4 +70,4 @@ void loop() {
     // Idle - could add periodic health checks or watchdog tests here
     delay(2000);
 }
-#endif // RUN_EMBEDDED_TESTS
+#endif // RUN_EMBEDDED_TESTS && !UNITY_EMBEDDED

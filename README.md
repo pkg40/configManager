@@ -224,6 +224,25 @@ pio upload -e seeed_xiao_esp32s3
 
 ESP8266 and other boards can still use the existing environments for compatibility validation.
 
+### Unity Test Environment
+The Unity unit test environment is defined in a chained config (`test/platformio.unity.ini`) referenced from the main `platformio.ini` via:
+
+```
+[platformio]
+extra_configs = test/platformio.unity.ini
+```
+
+Run Unity tests:
+```
+pio run -e seeed_xiao_esp32s3_unity -t upload
+pio device monitor -e seeed_xiao_esp32s3_unity
+```
+
+### Native Host Tests
+The `native` environment provides fast host-side execution without hardware. A simplified JSON parser is used currently; advanced JSON-centric tests (special characters & JSON compliance) are skipped in native mode until a full host JSON backend is added.
+
+To implement full parity, integrate a desktop JSON library (e.g. nlohmann/json) under `CONFIGMGR_NATIVE`.
+
 ## 🤝 Contributing
 
 1. Fork the repository

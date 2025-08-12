@@ -252,9 +252,29 @@ bool configManager::jsonStringToMap(const String &jsonString, std::map<String, s
 {
     configMap.clear();
 
+    #ifdef CONFIGMGR_NATIVE
+    // Simplified naive parser for native mode (split keys, no full JSON parsing)
+    // Expecting a very restricted JSON (flat objects of string:string)
+    // This is a placeholder to allow native test harness to run without ArduinoJson full features.
+    if (jsonString.empty()) return false;
+    // Extremely naive: count braces to approximate sections (not production quality)
+    size_t pos = 0;
+    while ((pos = jsonString.find('"', pos)) != std::string::npos) {
+        size_t end = jsonString.find('"', pos+1);
+        if (end == std::string::npos) break;
+        String section = jsonString.substr(pos+1, end-pos-1);
+        // Skip to next for this naive approach
+        pos = end + 1;
+        // Insert empty map if not exists
+        if (section.length() && section.find('.') == String::npos) {
+            if (!configMap.count(section)) configMap[section] = {};
+        }
+    }
+    if (verbose) Serial.printf("[native] Naive parse produced %d sections (keys not populated)\n", configMap.size());
+    return true;
+    #else // !CONFIGMGR_NATIVE
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, jsonString);
-
     if (error)
     {
         if (verbose) {
@@ -263,36 +283,30 @@ bool configManager::jsonStringToMap(const String &jsonString, std::map<String, s
         }
         return false;
     }
-
     if (!doc.is<JsonObject>()) {
         if (verbose) Serial.println("⚠️ Root element is not an object!");
         return false;
     }
-
     JsonObjectConst root = doc.as<JsonObjectConst>();
     if (verbose)
     {
         Serial.println("✅ JSON parsed successfully");
         Serial.printf("📊 Root object has %d keys\n", root.size());
     }
-
     for (JsonPairConst kv : root)
     {
         const String &sectionName = kv.key().c_str();
         JsonVariantConst sectionValue = kv.value();
-
         if (sectionValue.is<JsonObjectConst>())
         {
             JsonObjectConst sectionObj = sectionValue.as<JsonObjectConst>();
             std::map<String, String> sectionMap;
-
             for (JsonPairConst sectionKv : sectionObj)
             {
                 const String &key = sectionKv.key().c_str();
                 const String &value = sectionKv.value().as<String>();
                 sectionMap[key] = value;
             }
-
             configMap[sectionName] = sectionMap;
         }
         else
@@ -300,13 +314,12 @@ bool configManager::jsonStringToMap(const String &jsonString, std::map<String, s
             if (verbose) Serial.printf("⚠️ Section '%s' is not an object\n", sectionName.c_str());
         }
     }
-
     if (verbose)
     {
         Serial.printf("✅ Parsed %d sections\n", configMap.size());
     }
-
     return true;
+    #endif // CONFIGMGR_NATIVE switch
 }
 
 bool configManager::saveToJson(const String &path, const std::map<String, std::map<String, String>> &configMap) const
@@ -384,23 +397,39 @@ void configManager::printConfigToSerial() const
 
 String configManager::mapToJsonString(const std::map<String, std::map<String, String>> &configMap) const
 {
+    #ifdef CONFIGMGR_NATIVE
+    // Minimal JSON emitter for native mode (no escape handling)
+    String out = "{\n";
+    bool firstSection = true;
+    for (const auto &sectionPair : configMap) {
+        if (!firstSection) out += ",\n"; else firstSection = false;
+        out += "  \"" + sectionPair.first + "\": {";
+        bool firstKey = true;
+        for (const auto &kv : sectionPair.second) {
+            out += (firstKey ? "" : ",") + String("\n    \"") + kv.first + "\": \"" + kv.second + "\"";
+            firstKey = false;
+        }
+        if (!sectionPair.second.empty()) out += "\n  ";
+        out += "}";
+    }
+    out += "\n}\n";
+    return out;
+    #else // !CONFIGMGR_NATIVE
     JsonDocument doc;
-
     for (const auto &sectionPair : configMap)
     {
         const String &sectionName = sectionPair.first;
         const auto &sectionData = sectionPair.second;
-
         JsonObject sectionObj = doc[sectionName].to<JsonObject>();
         for (const auto &kv : sectionData)
         {
             sectionObj[kv.first] = kv.second;
         }
     }
-
     String output;
     serializeJsonPretty(doc, output);
     return output;
+    #endif // CONFIGMGR_NATIVE
 }
 
 

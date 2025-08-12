@@ -1,4 +1,8 @@
 #include <platformFileSystemProvider.hpp>
+#ifdef CONFIGMGR_NATIVE
+// Excluded for native build (nativeFileSystemProvider provides implementation)
+#warning "platformFileSystemProvider.cpp skipped in native build"
+#else
 
 bool platformFileSystemProvider::begin()
 {
@@ -27,3 +31,5 @@ bool platformFileSystemProvider::exists(const char *path)
 {
     return CONFIG_FS.exists(path);
 }
+
+#endif // !CONFIGMGR_NATIVE

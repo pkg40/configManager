@@ -1,0 +1,16 @@
+# PlatformIO build artifacts
+.pio/
+
+# VS Code
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# CMake/CLion or other IDE build dirs
+cmake-build-*/
+build/

@@ -27,7 +27,7 @@ public:
      * @param mode The mode to open the file in (e.g., "r", "w").
      * @return A File object. The file will be invalid if it could not be opened.
      */
-    virtual File open(const char *path, const char *mode) = 0;
+    virtual fs::File open(const char *path, const char *mode) = 0;
 
     /**
      * @brief Removes a file.

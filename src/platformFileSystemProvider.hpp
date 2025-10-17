@@ -27,7 +27,7 @@ class platformFileSystemProvider : public iFileSystemProvider
 {
 public:
     bool begin() override;
-    File open(const char *path, const char *mode) override;
+    fs::File open(const char *path, const char *mode) override;
     bool remove(const char *path) override;
     bool exists(const char *path) override;
 };

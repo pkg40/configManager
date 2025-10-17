@@ -17,7 +17,7 @@ bool platformFileSystemProvider::begin()
 #endif
 }
 
-File platformFileSystemProvider::open(const char *path, const char *mode)
+fs::File platformFileSystemProvider::open(const char *path, const char *mode)
 {
     return CONFIG_FS.open(path, mode);
 }

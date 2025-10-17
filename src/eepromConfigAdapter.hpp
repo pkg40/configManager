@@ -22,6 +22,12 @@ public:
     eepromConfigAdapter() : _configManager_p(nullptr), _initialized(false) {}
     
     /**
+     * Constructor with existing configManager
+     * @param configManager existing configManager instance
+     */
+    eepromConfigAdapter(configManager* configManager) : _configManager_p(configManager), _initialized(true) {}
+    
+    /**
      * Initialize the EEPROM config adapter
      * @param configPath path to the config file (e.g., "/eepromConfig.json")
      * @return true if successful, false otherwise

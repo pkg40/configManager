@@ -1,8 +1,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <myEEProm.hpp> // For eePromRec and EESIZE
-#include <moCoEEprom.hpp> // For MoCoEEProm class
 
 /**
  * Flash Wear Counter Library
@@ -10,11 +8,14 @@
  * Provides comprehensive flash wear tracking and device lifecycle management
  * for any device using the config libraries. Tracks flash write operations
  * and manages device retirement based on configurable limits.
+ * 
+ * This library is completely self-contained and handles its own EEPROM operations
+ * without depending on external EEPROM libraries.
  */
 
 // Configuration constants
 const uint32_t DEFAULT_MAX_FLASH_WRITES = 12000000; // 12 million writes
-const uint8_t DEFAULT_FLASH_WEAR_COUNTER_ADDRESS = 255; // Last EEPROM address
+const uint16_t DEFAULT_FLASH_WEAR_COUNTER_ADDRESS = 255; // Byte offset near end of 512-byte EEPROM emulation
 const unsigned long DEFAULT_REPORT_INTERVAL_MS = 300000; // 5 minutes
 
 // Warning thresholds (percentages)
@@ -22,16 +23,28 @@ const float CAUTION_THRESHOLD = 75.0;
 const float CRITICAL_THRESHOLD = 90.0;
 const float RETIREMENT_THRESHOLD = 100.0;
 
+// EEPROM record structure
+struct FlashWearRecord {
+    uint32_t value;
+    uint8_t valid;
+    uint8_t reserved[3]; // Padding to make it 8 bytes
+};
+
+// EEPROM constants
+const uint8_t FLASH_WEAR_VALID = 0xAA;
+const uint8_t FLASH_WEAR_RECORD_SIZE = 8;
+const uint16_t DEFAULT_BOOT_COUNTER_ADDRESS = DEFAULT_FLASH_WEAR_COUNTER_ADDRESS - FLASH_WEAR_RECORD_SIZE; // Store boot counter just before wear record
+const uint32_t BOOT_COUNTER_SANITY_LIMIT = 1000000; // Guard against corrupted counts
+
 /**
  * Initialize the flash wear counter system
- * @param eepromInstance pointer to EEPROM instance for counter storage
  * @param maxWrites maximum number of writes before retirement (default: 12M)
  * @param counterAddress EEPROM address for counter storage (default: 255)
  * @return true if initialization successful, false otherwise
  */
-bool initFlashWearCounter(MoCoEEProm* eepromInstance, 
-                         uint32_t maxWrites = DEFAULT_MAX_FLASH_WRITES,
-                         uint8_t counterAddress = DEFAULT_FLASH_WEAR_COUNTER_ADDRESS);
+bool initFlashWearCounter(uint32_t maxWrites = DEFAULT_MAX_FLASH_WRITES,
+                         uint16_t counterAddress = DEFAULT_FLASH_WEAR_COUNTER_ADDRESS,
+                         uint16_t bootCounterAddress = DEFAULT_BOOT_COUNTER_ADDRESS);
 
 /**
  * Update the flash wear counter after a successful write operation
@@ -56,6 +69,10 @@ float getFlashWearPercentage();
  * @return maximum write limit
  */
 uint32_t getMaxFlashWrites();
+
+// Compatibility aliases for legacy callers
+uint32_t getFlashWearCount();
+uint32_t getMaxFlashWearCount();
 
 /**
  * Report comprehensive flash wear status
@@ -116,3 +133,21 @@ String getFlashWearStatusString();
  * @return warning level: 0=none, 1=caution, 2=critical, 3=retirement
  */
 uint8_t getWarningLevel();
+
+/**
+ * Get the number of times the device has booted
+ * @return current boot count
+ */
+uint32_t getBootCount();
+
+/**
+ * Reset the boot counter to zero (use with caution)
+ * @return true if reset successful, false otherwise
+ */
+bool resetBootCounter();
+
+/**
+ * Get boot counter status as a formatted string
+ * @return formatted boot counter status
+ */
+String getBootCounterStatusString();

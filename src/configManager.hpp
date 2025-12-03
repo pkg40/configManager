@@ -25,23 +25,20 @@
 
 
 #pragma once
-#ifdef CONFIGMGR_NATIVE
-#include "compat/native_arduino_compat.hpp"
-#include "compat/WString.h"
-#else
-#include <Arduino.h>
-#include <WString.h>
-#endif
+#include <addressMapping.hpp>
+//#include <GlobalDefinitions.h>  // For USE_FLASH_WEAR_COUNTER macro
+#include <ArduinoJson.h>
+#include "interface/iFileSystemProvider.hpp" // Use the file system provider interface
+#include "interface/iConfigProvider.hpp" // Use the config provider interface
+#include <logger.hpp>
 #include <map>
 #include <vector>
-#ifndef CONFIGMGR_NATIVE
-#include <ArduinoJson.h>
-#endif
-#include "interface/iFileSystemProvider.hpp" // Use the file system provider interface
+
+// Debug helper defined in commonFunctions.cpp
+const char* stringAddressName(eePromAddress_t address);
 
 // Conditional interface inclusion for efficiency
 #ifndef CONFIG_DISABLE_INTERFACE
-    #include "interface/iConfigProvider.hpp"
     #define CONFIG_BASE_CLASS : public iConfigProvider
     #define CONFIG_OVERRIDE override
 #else
@@ -75,7 +72,8 @@
 // ESP8266: Recommended max config size 8KB, test with actual hardware
 // Consider using config sections to load only needed parts on ESP8266
 
-class configManager CONFIG_BASE_CLASS
+//class configManager CONFIG_BASE_CLASS
+class configManager : public iConfigProvider
 {
     #ifdef TESTBENCH
     friend class testLib;
@@ -104,6 +102,32 @@ public:
 
     String getValue(const String& section, const String& key) const CONFIG_OVERRIDE;
     void setValue(const String& section, const String& key, const String& value) CONFIG_OVERRIDE;
+
+    String getValue(const eePromAddress_t address, bool verbose = false) const {
+        String tmpStr = getValue(addressMap[address].section, addressMap[address].key);
+        if (verbose) {
+            LOG_INFO(LOG_CAT_SYSTEM, "getValue: Retrieving value=%s for address=%s, section=%s, key=%s",
+                tmpStr.c_str(), stringAddressName(address),
+                addressMap[address].section, addressMap[address].key);
+        }
+        return tmpStr;
+    }
+
+    void setValue(const eePromAddress_t address, const String& value) {
+        setValue(addressMap[address].section, addressMap[address].key, value);
+    }
+
+    String getSectionName(const eePromAddress_t address) const {
+        return addressMap[address].section;
+    }
+
+    String getKeyName(const eePromAddress_t address) const {
+        return addressMap[address].key;
+    }
+
+    String getName(const eePromAddress_t address) const {
+        return addressMap[address].name;
+    }
 
     // Alias for interface compatibility
     std::vector<String> getSectionNames() const CONFIG_OVERRIDE { return getSections(); }

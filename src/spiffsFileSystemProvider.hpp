@@ -22,6 +22,15 @@ public:
     }
     
     /**
+     * Unmount the SPIFFS filesystem
+     * @return true if successful, false otherwise
+     */
+    bool end() override {
+        SPIFFS.end();
+        return true;
+    }
+    
+    /**
      * Open a file for reading or writing
      * @param path file path
      * @param mode file mode ("r", "w", "a", etc.)

@@ -45,12 +45,12 @@ configManager config(&fsProvider, "/testbench_config.json");
 #endif
 
 void runBasicTests() {
-    Serial.println("🔧 === BASIC FUNCTIONAL TESTS === 🔧");
+    Serial.println("[TEST] === BASIC FUNCTIONAL TESTS === [TEST]");
     testLib::runAllTests(&config);
 }
 
 void runAdvancedTests() {
-    Serial.println("🧪 === ADVANCED ISOLATION TESTS === 🧪");
+    Serial.println("[ADVANCED] === ADVANCED ISOLATION TESTS === [ADVANCED]");
     advancedTestSuite::runAdvancedTests();
 }
 
@@ -162,7 +162,7 @@ void setup() {
     Serial.begin(115200);
     delay(2000); // Wait for serial connection
     
-    Serial.println("\n🚀 ConfigManager v2.0 Comprehensive Test Bench 🚀");
+    Serial.println("\n[START] ConfigManager v2.0 Comprehensive Test Bench [START]");
     Serial.println("====================================================");
     Serial.println("Testing filesystem provider separation architecture");
     Serial.println("Multiple test tiers: Basic → Advanced → Performance → Real-world\n");
@@ -179,7 +179,7 @@ void setup() {
     // Config manager is initialized in constructor with filesystem provider
     Serial.println("\n✅ ConfigManager initialized with filesystem provider");
     
-    Serial.println("\n📋 Starting comprehensive test suite...");
+    Serial.println("\n[INFO] Starting comprehensive test suite...");
     Serial.println("This may take a few minutes to complete.\n");
     
     unsigned long totalStartTime = millis();
@@ -192,11 +192,11 @@ void setup() {
     
     unsigned long totalTime = millis() - totalStartTime;
     
-    Serial.println("🏁 === TEST SUITE COMPLETE === 🏁");
+    Serial.println("[COMPLETE] === TEST SUITE COMPLETE === [COMPLETE]");
     Serial.printf("Total execution time: %lu ms (%.2f seconds)\n", totalTime, totalTime / 1000.0);
     Serial.println("=====================================");
     Serial.println("\nConfigManager v2.0 testing completed successfully!");
-    Serial.println("The library is ready for production use. 🎉\n");
+    Serial.println("The library is ready for production use. [SUCCESS]\n");
 }
 
 void loop() {
@@ -206,7 +206,7 @@ void loop() {
     // Optional: Print memory status every 30 seconds
     static bool memoryReported = false;
     if (!memoryReported) {
-        Serial.println("📊 === MEMORY STATUS (30s after tests) === 📊");
+        Serial.println("[INFO] === MEMORY STATUS (30s after tests) === [INFO]");
         config.printHeapStatus();
         Serial.printf("Config memory usage: %u bytes\n", config.getConfigMemoryUsage());
         Serial.println("============================================\n");

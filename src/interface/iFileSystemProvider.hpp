@@ -22,6 +22,12 @@ public:
     virtual bool begin() = 0;
 
     /**
+     * @brief Unmounts the filesystem.
+     * @return true on success, false on failure.
+     */
+    virtual bool end() = 0;
+
+    /**
      * @brief Opens a file.
      * @param path The path to the file.
      * @param mode The mode to open the file in (e.g., "r", "w").

@@ -1,4 +1,3 @@
-
 /*
  * MIT License
  *
@@ -6,25 +5,7 @@
  * Email: pkg40@yahoo.com
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this softwa    if (!file)
-    {
-        if (verbose)
-            Serial.println("❌ Failed to open config file.");
-        *jsonString_P = loadDefaults();
-    }
-    else
-    {
-        *jsonString_P = file.readString();
-        file.close();
-    }
-
-    if (jsonString_P->isEmpty())
-    {
-        if (verbose)
-            Serial.println("⚠️ Config file empty.");
-        *jsonString_P = loadDefaults();
-        return false;
-    }ocumentation files (the "Software"), to deal
+ * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
@@ -39,107 +20,26 @@
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
  * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * ESP8266/ESP32 Configuration Manager
- * 
- * Cross-platform JSON configuration manager supporting both ESP32 and ESP8266.
- * Features:
- * - Automatic platform detection and filesystem initialization
- * - Support for SPIFFS (both platforms) and LittleFS (ESP8266 recommended)
- * - Memory-efficient JSON parsing with configurable buffer sizes
- * - Default configuration fallback system
- * 
- * ESP8266 Specific Considerations:
- * - Limited heap memory (~80KB available) 
- * - SPIFFS.begin() on ESP8266 doesn't take parameters (vs ESP32 which takes format flag)
- * - Recommended to use LittleFS on ESP8266 for better performance and reliability
- * - Test thoroughly with actual hardware due to memory constraints
- * 
- * Memory Usage:
- * - JSON parsing uses ArduinoJson which allocates memory for the document
- * - Large configs (>8KB) may cause issues on ESP8266
- * - Consider splitting large configs into multiple files if needed
  */
 
 /**
  * @file configManager.cpp
  * @brief Implementation of persistent JSON configuration manager for ESP32/ESP8266
- * @author Peter K Green (pkg40@yahoo.com)
  */
+
+#include <Arduino.h>
+#include <ArduinoJson.h>
+#include <map>
+#include <utility>
+#include <vector>
 
 #include <configManager.hpp>
 
-configManager::configManager(iFileSystemProvider* fsProvider, const String& configFilePath, size_t maxConfigSize) : 
-    _fsProvider(fsProvider),
-    _configFilePath(configFilePath),
-    _maxConfigSize(maxConfigSize),
-    _isConfigLoaded(false) 
+#include "flashWearCounter.hpp"
+
+namespace
 {
-    if (!_fsProvider) {
-        // Handle null file system provider
-        // Perhaps log an error or throw an exception
-    }
-}
-
-bool configManager::begin(String filename, bool verbose)
-{
-    // Null pointer checks
-    if (filename.isEmpty()) {
-        if (verbose) Serial.println("❌ Error: Filename cannot be empty.");
-        return false;
-    }
-
-    _configFilePath = filename;
-    String jsonString;
-    _configMap.clear(); // Always start clean
-
-    // Initialize filesystem
-    if (!_fsProvider->begin())
-    {
-        if (verbose)
-            Serial.println("❌ Filesystem Mount Failed. Loading defaults...");
-        jsonString = loadDefaults();
-    }
-    else
-    {
-        if (verbose)
-            Serial.println("✅ Filesystem mounted");
-
-        if (!loadConfigString(filename.c_str(), &jsonString, verbose))
-        {
-            if (verbose)
-                Serial.println("⚠️ Failed to read config file. Loading defaults...");
-            jsonString = loadDefaults();
-        }
-    }
-
-    if (verbose && !jsonString.isEmpty())
-    {
-        Serial.println("📄 Raw config string:");
-        Serial.println(jsonString);
-    }
-
-    // Deserialize
-    if (!jsonStringToConfig(jsonString, verbose)) {
-        if (verbose)
-            Serial.println("⚠️ JSON parsing failed. Loading defaults...");
-        jsonString = loadDefaults();
-        jsonStringToConfig(jsonString, verbose);
-    }
-
-    if (verbose)
-    {
-        Serial.printf("✅ Loaded %zu config sections\n", _configMap.size());
-        printConfigToSerial();
-    }
-
-    _isConfigLoaded = !_configMap.empty();
-    return _isConfigLoaded;
-}
-
-String configManager::loadDefaults() const
-{
-    const char *defaultJSON = R"rawlite(
+    constexpr const char *DEFAULT_WIFI_CONFIG_JSON = R"rawlite(
 {
   "auth.format": {
     "_user": "string",
@@ -211,35 +111,259 @@ String configManager::loadDefaults() const
   }
 }
 )rawlite";
-    return defaultJSON;
+
+    constexpr const char *DEFAULT_STATE_CONFIG_JSON = R"rawlite(
+{
+  "sections": {
+    "a":"application",
+    "b":"input",
+    "c":"display",
+    "d":"setpoints",
+    "e":"flags",
+    "f":"testmode",
+    "h":"flags",
+    "i":"testmode",
+    "j":"auto",
+    "k":"memory"
+  },
+  "application" : {
+    "name" : "Motor Controller",
+    "version" : "5.0",
+    "date" : "2025-10-14",
+    "role" : "1"
+  },
+  "input" : {
+    "type" : "touch",
+    "direction" : "righty"
+  },
+  "display" : {
+    "mode" : "day",
+    "brightness" : "5",
+    "offtime" : "30",
+    "menubuttons" : "tru",
+    "fullscreen" : "false",
+    "fullscreentoggle" : "false",
+    "sleep" : "false"
+  },
+  "setpoints" : {
+    "deviceon" : "1",
+    "last" : "0",
+    "present" : "0",
+    "idle" : "0",
+    "max" : "900"
+  },
+  "flags" : {
+    "factoryreset" : "false",
+    "role" : "1",
+    "ota" : "false"
+  },
+  "testmode" : {
+    "loopback" : "false",
+    "stresstest" : "false"
+  },
+  "autoperiod" : {
+    "step1" : "5",
+    "step2" : "10",
+    "step3" : "15",
+    "step4" : "10",
+    "step5" : "5",
+    "step6" : "20"
+  },
+  "auto" : {
+    "period" : "10",
+    "step1" : "120",
+    "step2" : "160",
+    "step3" : "220",
+    "step4" : "240",
+    "step5" : "320",
+    "step6" : "321",
+    "repeats" : "10",
+    "steps" : "4"
+  },
+  "memory1" : {
+    "address1" : "100",
+    "address2" : "200",
+    "address3" : "300",
+    "address4" : "400",
+    "address5" : "-99",
+    "address6" : "-99"
+  },
+  "memory2" : {
+    "address1" : "-99",
+    "address2" : "-99",
+    "address3" : "-99",
+    "address4" : "-99",
+    "address5" : "-99",
+    "address6" : "-99"
+  },
+  "memory3" : {
+    "address1" : "-99",
+    "address2" : "-99",
+    "address3" : "-99",
+    "address4" : "-99",
+    "address5" : "-99",
+    "address6" : "-99"
+  },
+  "memory4" : {
+    "address1" : "-99",
+    "address2" : "-99",
+    "address3" : "-99",
+    "address4" : "-99",
+    "address5" : "-99",
+    "address6" : "-99"
+  },
+  "memory5" : {
+    "address1" : "-99",
+    "address2" : "-99",
+    "address3" : "-99",
+    "address4" : "-99",
+    "address5" : "-99",
+    "address6" : "-99"
+  },
+  "memory6" : {
+    "address1" : "-99",
+    "address2" : "-99",
+    "address3" : "-99",
+    "address4" : "-99",
+    "address5" : "-99",
+    "address6" : "-99"
+  },
+  "calibration" : {
+    "offset" : "0",
+    "limit" : "900",
+    "stepsize" : "5",
+    "scalefactor" : "1",
+    "period" : "120"
+  }
+}
+)rawlite";
+}
+
+configManager::configManager(iFileSystemProvider *fsProvider, const String &configFilePath, size_t maxConfigSize) :
+    _fsProvider(fsProvider),
+    _maxConfigSize(maxConfigSize),
+    _configFilePath(configFilePath),
+    _isConfigLoaded(false)
+{
+}
+
+bool configManager::begin(String filename, bool verbose)
+{
+    if (filename.isEmpty())
+    {
+        if (verbose)
+        {
+            LOG_ERROR(LOG_CAT_CONFIG, "Filename cannot be empty.");
+        }
+        return false;
+    }
+
+    _configFilePath = filename;
+    String jsonString;
+    _configMap.clear();
+
+    if (!_fsProvider || !_fsProvider->begin())
+    {
+        if (verbose)
+        {
+            LOG_ERROR(LOG_CAT_CONFIG, "Filesystem mount failed. Loading defaults...");
+        }
+        jsonString = loadDefaults();
+    }
+    else
+    {
+        if (verbose)
+        {
+            LOG_INFO(LOG_CAT_CONFIG, "Filesystem mounted");
+        }
+
+        if (!loadConfigString(filename.c_str(), &jsonString, verbose))
+        {
+            if (verbose)
+            {
+                LOG_WARN(LOG_CAT_CONFIG, "Failed to read config file. Loading defaults...");
+            }
+            jsonString = loadDefaults();
+        }
+
+        _fsProvider->end();
+        if (verbose)
+        {
+            LOG_INFO(LOG_CAT_CONFIG, "Filesystem unmounted");
+        }
+    }
+
+    if (verbose && !jsonString.isEmpty())
+    {
+        LOG_INFO(LOG_CAT_CONFIG, "Raw config string:");
+        LOG_INFO(LOG_CAT_CONFIG, jsonString.c_str());
+    }
+
+    if (!jsonStringToConfig(jsonString, verbose))
+    {
+        if (verbose)
+        {
+            LOG_WARN(LOG_CAT_CONFIG, "JSON parsing failed. Loading defaults...");
+        }
+        jsonString = loadDefaults();
+        jsonStringToConfig(jsonString, verbose);
+    }
+
+    if (verbose)
+    {
+        LOG_INFO(LOG_CAT_CONFIG, "Loaded %u config sections", static_cast<unsigned int>(_configMap.size()));
+        printConfigToSerial();
+    }
+
+    _isConfigLoaded = !_configMap.empty();
+    return _isConfigLoaded;
+}
+
+String configManager::loadDefaults() const
+{
+    if (_configFilePath.endsWith("savedState.json") || _configFilePath.endsWith("factoryState.json"))
+    {
+        return DEFAULT_STATE_CONFIG_JSON;
+    }
+
+    return DEFAULT_WIFI_CONFIG_JSON;
 }
 
 bool configManager::loadConfigString(const char *filename, String *jsonString, bool verbose)
 {
-    if (!filename || !jsonString) return false;
+    if (!filename || !jsonString)
+    {
+        return false;
+    }
 
-    File file = _fsProvider->open(filename, "r");
+    fs::File file = _fsProvider->open(filename, "r");
     if (!file)
     {
         if (verbose)
-            Serial.println("❌ Failed to open config file.");
+        {
+            LOG_ERROR(LOG_CAT_CONFIG, "Failed to open config file. Falling back to defaults.");
+        }
         *jsonString = loadDefaults();
         return false;
     }
-    
+
     *jsonString = file.readString();
     file.close();
 
     if (jsonString->isEmpty())
     {
         if (verbose)
-            Serial.println("⚠️ Config file empty.");
+        {
+            LOG_WARN(LOG_CAT_CONFIG, "Config file empty.");
+        }
         *jsonString = loadDefaults();
         return false;
     }
 
     if (verbose)
-        Serial.println("✅ Config file loaded.");
+    {
+        LOG_INFO(LOG_CAT_CONFIG, "Config file loaded.");
+    }
     return true;
 }
 
@@ -248,117 +372,155 @@ bool configManager::jsonStringToConfig(const String &jsonString, bool verbose)
     return jsonStringToMap(jsonString, _configMap, verbose);
 }
 
-bool configManager::jsonStringToMap(const String &jsonString, std::map<String, std::map<String, String>>& configMap, bool verbose)
+bool configManager::jsonStringToMap(const String &jsonString, std::map<String, std::map<String, String>> &configMap, bool verbose)
 {
     configMap.clear();
 
-    #ifdef CONFIGMGR_NATIVE
-    // Simplified naive parser for native mode (split keys, no full JSON parsing)
-    // Expecting a very restricted JSON (flat objects of string:string)
-    // This is a placeholder to allow native test harness to run without ArduinoJson full features.
-    if (jsonString.empty()) return false;
-    // Extremely naive: count braces to approximate sections (not production quality)
+#ifdef CONFIGMGR_NATIVE
+    if (jsonString.empty())
+    {
+        return false;
+    }
+
     size_t pos = 0;
-    while ((pos = jsonString.find('"', pos)) != std::string::npos) {
-        size_t end = jsonString.find('"', pos+1);
-        if (end == std::string::npos) break;
-        String section = jsonString.substr(pos+1, end-pos-1);
-        // Skip to next for this naive approach
+    while ((pos = jsonString.find('"', pos)) != std::string::npos)
+    {
+        size_t end = jsonString.find('"', pos + 1);
+        if (end == std::string::npos)
+        {
+            break;
+        }
+        String section = jsonString.substr(pos + 1, end - pos - 1);
         pos = end + 1;
-        // Insert empty map if not exists
-        if (section.length() && section.find('.') == String::npos) {
-            if (!configMap.count(section)) configMap[section] = {};
+        if (section.length() && !section.startsWith("_") && section.find('.') == String::npos)
+        {
+            configMap.emplace(section, std::map<String, String>{});
         }
     }
-    if (verbose) Serial.printf("[native] Naive parse produced %d sections (keys not populated)\n", configMap.size());
+
+    if (verbose)
+    {
+        LOG_INFO(LOG_CAT_CONFIG, "Naive parse produced %u sections", static_cast<unsigned int>(configMap.size()));
+    }
     return true;
-    #else // !CONFIGMGR_NATIVE
+#else
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, jsonString);
     if (error)
     {
-        if (verbose) {
-            Serial.print(F("❌ deserializeJson() failed: "));
-            Serial.println(error.c_str());
+        if (verbose)
+        {
+            LOG_ERROR(LOG_CAT_CONFIG, "deserializeJson() failed: %s", error.c_str());
         }
         return false;
     }
-    if (!doc.is<JsonObject>()) {
-        if (verbose) Serial.println("⚠️ Root element is not an object!");
+
+    JsonVariantConst rootVariant = doc.as<JsonVariantConst>();
+    if (!rootVariant.is<JsonObjectConst>())
+    {
+        if (verbose)
+        {
+            LOG_WARN(LOG_CAT_CONFIG, "Root element is not an object");
+        }
         return false;
     }
-    JsonObjectConst root = doc.as<JsonObjectConst>();
+
+    JsonObjectConst root = rootVariant.as<JsonObjectConst>();
     if (verbose)
     {
-        Serial.println("✅ JSON parsed successfully");
-        Serial.printf("📊 Root object has %d keys\n", root.size());
+        LOG_INFO(LOG_CAT_CONFIG, "JSON parsed successfully");
+        LOG_INFO(LOG_CAT_CONFIG, "Root object has %u keys", static_cast<unsigned int>(root.size()));
     }
+
     for (JsonPairConst kv : root)
     {
-        const String &sectionName = kv.key().c_str();
+        const String sectionName = kv.key().c_str();
         JsonVariantConst sectionValue = kv.value();
-        if (sectionValue.is<JsonObjectConst>())
+        if (!sectionValue.is<JsonObjectConst>())
         {
-            JsonObjectConst sectionObj = sectionValue.as<JsonObjectConst>();
-            std::map<String, String> sectionMap;
-            for (JsonPairConst sectionKv : sectionObj)
+            if (verbose)
             {
-                const String &key = sectionKv.key().c_str();
-                const String &value = sectionKv.value().as<String>();
-                sectionMap[key] = value;
+                LOG_WARN(LOG_CAT_CONFIG, "Section '%s' is not an object", sectionName.c_str());
             }
-            configMap[sectionName] = sectionMap;
+            continue;
         }
-        else
+
+        std::map<String, String> sectionMap;
+    JsonObjectConst sectionObj = sectionValue.as<JsonObjectConst>();
+        for (JsonPairConst sectionKv : sectionObj)
         {
-            if (verbose) Serial.printf("⚠️ Section '%s' is not an object\n", sectionName.c_str());
+            const String key = sectionKv.key().c_str();
+            const String value = sectionKv.value().as<String>();
+            sectionMap.emplace(key, value);
         }
+        configMap.emplace(sectionName, std::move(sectionMap));
     }
+
     if (verbose)
     {
-        Serial.printf("✅ Parsed %d sections\n", configMap.size());
+        LOG_INFO(LOG_CAT_CONFIG, "Parsed %u sections", static_cast<unsigned int>(configMap.size()));
     }
     return true;
-    #endif // CONFIGMGR_NATIVE switch
+#endif
 }
 
 bool configManager::saveToJson(const String &path, const std::map<String, std::map<String, String>> &configMap) const
 {
     String jsonOutput = mapToJsonString(configMap);
 
-    File file = _fsProvider->open(path.c_str(), "w");
+    if (!_fsProvider || !_fsProvider->begin())
+    {
+        LOG_ERROR(LOG_CAT_CONFIG, "Failed to mount filesystem for writing: %s", path.c_str());
+        return false;
+    }
+
+    fs::File file = _fsProvider->open(path.c_str(), "w");
     if (!file)
     {
-        Serial.println("❌ Failed to open file for writing: " + path);
+        LOG_ERROR(LOG_CAT_CONFIG, "Failed to open file for writing: %s", path.c_str());
+        _fsProvider->end();
         return false;
     }
 
     size_t written = file.print(jsonOutput);
     file.close();
+    _fsProvider->end();
 
     if (written == 0)
     {
-        Serial.println("⚠️ Nothing was written to " + path);
+        LOG_WARN(LOG_CAT_CONFIG, "Nothing was written to %s", path.c_str());
         return false;
     }
 
-    Serial.printf("✅ Config saved to %s (%u bytes)\n", path.c_str(), written);
+    LOG_INFO(LOG_CAT_CONFIG, "Config saved to %s (%u bytes)", path.c_str(), static_cast<unsigned int>(written));
+
+    // MANDATORY: Always track flash writes for device lifecycle management
+    const bool wearResult = updateFlashWearCounter();
+    LOG_INFO(LOG_CAT_CONFIG, "updateFlashWearCounter() returned: %s", wearResult ? "true" : "false");
+
     return true;
 }
 
 bool configManager::saveConfigFile(const char *filename)
 {
-    if (!filename) return false;
-    return saveToJson(filename, _configMap);
+    return filename ? saveToJson(filename, _configMap) : false;
 }
 
 String configManager::getValue(const String &section, const String &key) const
 {
-    if (_configMap.count(section) && _configMap.at(section).count(key))
+    auto sectionIt = _configMap.find(section);
+    if (sectionIt == _configMap.end())
     {
-        return _configMap.at(section).at(key);
+        return "[NOT FOUND]";
     }
-    return "[NOT FOUND]";
+
+    auto valueIt = sectionIt->second.find(key);
+    if (valueIt == sectionIt->second.end())
+    {
+        return "[NOT FOUND]";
+    }
+
+    return valueIt->second;
 }
 
 void configManager::setValue(const String &section, const String &key, const String &value)
@@ -383,74 +545,83 @@ String configManager::getPassword() const
 
 void configManager::printConfigToSerial() const
 {
-    Serial.println("\n===== Configuration Map =====");
+    LOG_INFO(LOG_CAT_CONFIG, "\n===== Configuration Map =====");
     for (const auto &section : _configMap)
     {
-        Serial.println("[" + section.first + "]");
+        LOG_INFO(LOG_CAT_CONFIG, "[%s]", section.first.c_str());
         for (const auto &field : section.second)
         {
-            Serial.printf("  %s: %s\n", field.first.c_str(), field.second.c_str());
+            LOG_INFO(LOG_CAT_CONFIG, "  %s: %s", field.first.c_str(), field.second.c_str());
         }
     }
-    Serial.println("=============================\n");
+    LOG_INFO(LOG_CAT_CONFIG, "=============================");
 }
 
 String configManager::mapToJsonString(const std::map<String, std::map<String, String>> &configMap) const
 {
-    #ifdef CONFIGMGR_NATIVE
-    // Minimal JSON emitter for native mode (no escape handling)
+#ifdef CONFIGMGR_NATIVE
     String out = "{\n";
     bool firstSection = true;
-    for (const auto &sectionPair : configMap) {
-        if (!firstSection) out += ",\n"; else firstSection = false;
+    for (const auto &sectionPair : configMap)
+    {
+        if (!firstSection)
+        {
+            out += ",\n";
+        }
+        firstSection = false;
         out += "  \"" + sectionPair.first + "\": {";
+
         bool firstKey = true;
-        for (const auto &kv : sectionPair.second) {
+        for (const auto &kv : sectionPair.second)
+        {
             out += (firstKey ? "" : ",") + String("\n    \"") + kv.first + "\": \"" + kv.second + "\"";
             firstKey = false;
         }
-        if (!sectionPair.second.empty()) out += "\n  ";
+
+        if (!sectionPair.second.empty())
+        {
+            out += "\n  ";
+        }
         out += "}";
     }
     out += "\n}\n";
     return out;
-    #else // !CONFIGMGR_NATIVE
+#else
     JsonDocument doc;
+    JsonObject root = doc.to<JsonObject>();
     for (const auto &sectionPair : configMap)
     {
-        const String &sectionName = sectionPair.first;
-        const auto &sectionData = sectionPair.second;
-        JsonObject sectionObj = doc[sectionName].to<JsonObject>();
-        for (const auto &kv : sectionData)
+        JsonObject sectionObj = root[sectionPair.first].to<JsonObject>();
+        for (const auto &kv : sectionPair.second)
         {
             sectionObj[kv.first] = kv.second;
         }
     }
+
     String output;
     serializeJsonPretty(doc, output);
     return output;
-    #endif // CONFIGMGR_NATIVE
+#endif
 }
-
 
 std::map<String, String> &configManager::getSection(const String &sectionName)
 {
     return _configMap[sectionName];
 }
 
-const std::map<String, String>& configManager::getSection(const String &sectionName) const
+const std::map<String, String> &configManager::getSection(const String &sectionName) const
 {
-    static const std::map<String, String> emptyMap;
+    static const std::map<String, String> EMPTY_SECTION;
     auto it = _configMap.find(sectionName);
-    if (it != _configMap.end()) {
-        return it->second;
-    }
-    return emptyMap;
+    return it != _configMap.end() ? it->second : EMPTY_SECTION;
 }
 
 bool configManager::parseHexStringToBytes(const String &hexInput, uint8_t *outputBuffer, size_t bufferLen) const
 {
-    if (!outputBuffer || bufferLen == 0) return false;
+    if (!outputBuffer || bufferLen == 0)
+    {
+        return false;
+    }
 
     String hex = hexInput;
     hex.replace(" ", "");
@@ -462,7 +633,9 @@ bool configManager::parseHexStringToBytes(const String &hexInput, uint8_t *outpu
     }
 
     if (hex.length() != bufferLen * 2)
+    {
         return false;
+    }
 
     for (size_t i = 0; i < bufferLen; ++i)
     {
@@ -470,17 +643,19 @@ bool configManager::parseHexStringToBytes(const String &hexInput, uint8_t *outpu
         char *end = nullptr;
         outputBuffer[i] = static_cast<uint8_t>(strtol(byteStr, &end, 16));
         if (*end != '\0')
+        {
             return false;
+        }
     }
 
     return true;
 }
 
-// iConfigProvider interface implementation
 std::vector<String> configManager::getSections() const
 {
     std::vector<String> sections;
-    for (const auto& section : _configMap)
+    sections.reserve(_configMap.size());
+    for (const auto &section : _configMap)
     {
         sections.push_back(section.first);
     }
@@ -490,28 +665,32 @@ std::vector<String> configManager::getSections() const
 std::vector<String> configManager::getFormatSections() const
 {
     std::vector<String> formatSections;
-    for (const auto& section : _configMap)
+    formatSections.reserve(_configMap.size());
+    for (const auto &section : _configMap)
     {
-        String formatSection = section.first;
-        if (formatSection.startsWith("_"))
+        String name = section.first;
+        if (name.startsWith("_"))
         {
-            formatSection = formatSection.substring(1);
+            name.remove(0, 1);
         }
-        formatSections.push_back(formatSection);
+        formatSections.push_back(name);
     }
     return formatSections;
 }
 
-std::vector<String> configManager::getKeys(const String& section) const
+std::vector<String> configManager::getKeys(const String &section) const
 {
     std::vector<String> keys;
     auto sectionIt = _configMap.find(section);
-    if (sectionIt != _configMap.end())
+    if (sectionIt == _configMap.end())
     {
-        for (const auto& keyValue : sectionIt->second)
-        {
-            keys.push_back(keyValue.first);
-        }
+        return keys;
+    }
+
+    keys.reserve(sectionIt->second.size());
+    for (const auto &kv : sectionIt->second)
+    {
+        keys.push_back(kv.first);
     }
     return keys;
 }
@@ -526,46 +705,32 @@ bool configManager::loadConfig()
     return begin(_configFilePath.c_str(), true);
 }
 
-/**
- * @brief Print current heap status to Serial (ESP8266/ESP32 only).
- *
- * Prints free heap and config memory usage for diagnostics.
- */
-void configManager::printHeapStatus() const {
+void configManager::printHeapStatus() const
+{
 #if defined(ESP8266) || defined(ESP32)
-    Serial.printf("[configManager] Free heap: %u bytes\n", ESP.getFreeHeap());
-    Serial.printf("[configManager] Config memory usage: %u bytes\n", getConfigMemoryUsage());
-#else
-    // No-op for other platforms
+    LOG_INFO(LOG_CAT_CONFIG, "[configManager] Free heap: %u bytes", ESP.getFreeHeap());
+    LOG_INFO(LOG_CAT_CONFIG, "[configManager] Config memory usage: %u bytes", static_cast<unsigned int>(getConfigMemoryUsage()));
 #endif
 }
 
-/**
- * @brief Get the memory usage of the loaded config (in bytes).
- *
- * @return size_t Number of bytes used by the config in memory.
- */
-size_t configManager::getConfigMemoryUsage() const {
-    // Estimate memory usage of config (JSON + STL containers)
+size_t configManager::getConfigMemoryUsage() const
+{
     size_t total = 0;
-    for (const auto& section : _configMap) {
+    for (const auto &section : _configMap)
+    {
         total += section.first.length();
-        for (const auto& kv : section.second) {
-            total += kv.first.length() + kv.second.length();
+        for (const auto &kv : section.second)
+        {
+            total += kv.first.length();
+            total += kv.second.length();
         }
     }
     return total;
 }
 
-/**
- * @brief Erase the config file and reset to defaults.
- *
- * Removes the config file from the filesystem and clears in-memory config.
- * Safe to call at any time.
- * @return true if config was cleared, false otherwise.
- */
-bool configManager::clearConfig() {
-    bool removed = _fsProvider->remove("/config.json");
+bool configManager::clearConfig()
+{
+    bool removed = _fsProvider ? _fsProvider->remove(_configFilePath.c_str()) : false;
     _configMap.clear();
     return removed;
 }

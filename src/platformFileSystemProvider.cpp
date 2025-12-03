@@ -17,6 +17,16 @@ bool platformFileSystemProvider::begin()
 #endif
 }
 
+bool platformFileSystemProvider::end()
+{
+#if defined(ESP32) || defined(ESP8266)
+    CONFIG_FS.end();
+    return true;
+#else
+    return false; // Not supported on this platform
+#endif
+}
+
 fs::File platformFileSystemProvider::open(const char *path, const char *mode)
 {
     return CONFIG_FS.open(path, mode);

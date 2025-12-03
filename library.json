@@ -21,7 +21,7 @@
   "dependencies": [
     {
       "name": "ArduinoJson",
-      "version": "^6.19.0"
+      "version": "^7.4.1"
     }
   ],
   "build": {
@@ -30,6 +30,7 @@
     "srcFilter": [
       "+<interface/*>",
       "+<*.cpp>",
+      "-<testBench.cpp>",
       "+<*.hpp>"
     ]
   },

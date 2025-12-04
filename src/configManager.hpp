@@ -85,6 +85,14 @@ private:
     String _configFilePath;
 
     bool _isConfigLoaded;
+    
+    // Domain registration for web interface
+    String _domainName;
+    bool _isDefaultDomain;
+    
+    // Static registry for all config domains
+    static std::map<String, configManager*> _domainRegistry;
+    static configManager* _defaultDomain;
 
     bool begin(String filename, bool verbose = true);
     bool loadConfigString(const char* filename, String* jsonString, bool verbose = true);
@@ -98,7 +106,17 @@ private:
 
 public:
     explicit configManager(iFileSystemProvider* fsProvider, const String& configFilePath = "/config.json", size_t maxConfigSize = 8192);
-    ~configManager() = default;
+    ~configManager();
+    
+    // Domain registration for web interface
+    void setDomain(const String& domainName, bool isDefault = false);
+    String getDomain() const { return _domainName; }
+    bool isDefaultDomain() const { return _isDefaultDomain; }
+    
+    // Static methods to access domain registry
+    static std::vector<String> getDomainNames();
+    static configManager* getDomain(const String& domainName);
+    static configManager* getDefaultDomain();
 
     String getValue(const String& section, const String& key) const CONFIG_OVERRIDE;
     void setValue(const String& section, const String& key, const String& value) CONFIG_OVERRIDE;
@@ -150,4 +168,7 @@ public:
     void printHeapStatus() const;
     size_t getConfigMemoryUsage() const;
     bool clearConfig();
+    
+    // Get filesystem provider for use by web server modules
+    iFileSystemProvider* getFileSystemProvider() const { return _fsProvider; }
 };

@@ -5,9 +5,17 @@
 #warning "littleFSProvider.cpp skipped in native build"
 #else
 
+// Static flag to track if filesystem is already mounted
+static bool _littleFSMounted = false;
+
 bool littleFSProvider::begin()
 {
 #if defined(ESP32)
+    // If already mounted, return true immediately
+    if (_littleFSMounted) {
+        return true;
+    }
+    
     // For ESP32, the 'true' argument formats the filesystem if it fails to mount.
     // LittleFS.begin(true) will attempt to mount and format if needed
     bool result = LITTLEFS_CONFIG_FS.begin(true);
@@ -16,6 +24,10 @@ bool littleFSProvider::begin()
         if (LITTLEFS_CONFIG_FS.format()) {
             result = LITTLEFS_CONFIG_FS.begin(false);
         }
+    }
+    
+    if (result) {
+        _littleFSMounted = true;
     }
     return result;
     
@@ -40,6 +52,7 @@ bool littleFSProvider::end()
 {
 #if defined(ESP32) || defined(ESP8266)
     LITTLEFS_CONFIG_FS.end();
+    _littleFSMounted = false;  // Reset mount flag so begin() can remount
     return true;
 #else
     return false; // Not supported on this platform

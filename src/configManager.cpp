@@ -37,6 +37,10 @@
 
 #include "flashWearCounter.hpp"
 
+// Static member definitions
+std::map<String, configManager*> configManager::_domainRegistry;
+configManager* configManager::_defaultDomain = nullptr;
+
 namespace
 {
     constexpr const char *DEFAULT_WIFI_CONFIG_JSON = R"rawlite(
@@ -243,7 +247,9 @@ configManager::configManager(iFileSystemProvider *fsProvider, const String &conf
     _fsProvider(fsProvider),
     _maxConfigSize(maxConfigSize),
     _configFilePath(configFilePath),
-    _isConfigLoaded(false)
+    _isConfigLoaded(false),
+    _domainName(""),
+    _isDefaultDomain(false)
 {
 }
 
@@ -324,6 +330,13 @@ String configManager::loadDefaults() const
     if (_configFilePath.endsWith("savedState.json") || _configFilePath.endsWith("factoryState.json"))
     {
         return DEFAULT_STATE_CONFIG_JSON;
+    }
+    
+    // State machine config - return empty JSON object (no defaults)
+    // The state machine will populate this when saveTables() is called
+    if (_configFilePath.endsWith("stateMachineConfig.json"))
+    {
+        return "{}";
     }
 
     return DEFAULT_WIFI_CONFIG_JSON;
@@ -468,6 +481,7 @@ bool configManager::saveToJson(const String &path, const std::map<String, std::m
 {
     String jsonOutput = mapToJsonString(configMap);
 
+    // Ensure filesystem is mounted (begin() is idempotent with static flag in littleFSProvider)
     if (!_fsProvider || !_fsProvider->begin())
     {
         LOG_ERROR(LOG_CAT_CONFIG, "Failed to mount filesystem for writing: %s", path.c_str());
@@ -733,4 +747,62 @@ bool configManager::clearConfig()
     bool removed = _fsProvider ? _fsProvider->remove(_configFilePath.c_str()) : false;
     _configMap.clear();
     return removed;
+}
+
+configManager::~configManager() {
+    // Unregister from domain registry if registered
+    if (_domainName.length() > 0) {
+        auto it = _domainRegistry.find(_domainName);
+        if (it != _domainRegistry.end() && it->second == this) {
+            _domainRegistry.erase(it);
+        }
+        if (_defaultDomain == this) {
+            _defaultDomain = nullptr;
+        }
+    }
+}
+
+void configManager::setDomain(const String& domainName, bool isDefault) {
+    // Unregister old domain if changing
+    if (_domainName.length() > 0 && _domainName != domainName) {
+        auto it = _domainRegistry.find(_domainName);
+        if (it != _domainRegistry.end() && it->second == this) {
+            _domainRegistry.erase(it);
+        }
+        if (_defaultDomain == this) {
+            _defaultDomain = nullptr;
+        }
+    }
+    
+    _domainName = domainName;
+    _isDefaultDomain = isDefault;
+    
+    // Register in static registry
+    if (domainName.length() > 0) {
+        _domainRegistry[domainName] = this;
+        if (isDefault || _defaultDomain == nullptr) {
+            _defaultDomain = this;
+        }
+    }
+}
+
+std::vector<String> configManager::getDomainNames() {
+    std::vector<String> names;
+    names.reserve(_domainRegistry.size());
+    for (const auto& pair : _domainRegistry) {
+        names.push_back(pair.first);
+    }
+    return names;
+}
+
+configManager* configManager::getDomain(const String& domainName) {
+    if (domainName.length() == 0) {
+        return _defaultDomain;
+    }
+    auto it = _domainRegistry.find(domainName);
+    return (it != _domainRegistry.end()) ? it->second : nullptr;
+}
+
+configManager* configManager::getDefaultDomain() {
+    return _defaultDomain;
 }
